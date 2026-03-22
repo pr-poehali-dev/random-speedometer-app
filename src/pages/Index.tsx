@@ -114,7 +114,7 @@ function useAudioEngine() {
 
 // Центр стрелки — нижняя середина полукруга
 const CX = 210;
-const CY = 215; // центр — чуть выше нижнего края
+const CY = 230; // центр — с запасом от нижнего края
 
 const ticks = generateTicks(CX, CY);
 const labels = generateLabels(CX, CY);
@@ -185,9 +185,9 @@ export default function Index() {
           )}
 
           <svg
-            viewBox="0 0 420 240"
+            viewBox="0 0 420 260"
             width="480"
-            height="275"
+            height="298"
             style={{ display: "block", margin: "0 auto" }}
           >
             <defs>
@@ -407,10 +407,12 @@ export default function Index() {
               </text>
             )}
 
-            {/* Нижняя прямая линия */}
+            {/* Нижняя прямая линия + боковые заглушки */}
             <line x1={CX - 182} y1={CY} x2={CX + 182} y2={CY}
-              stroke="url(#chromRing)" strokeWidth="4"
+              stroke="url(#chromRing)" strokeWidth="5"
             />
+            <rect x={CX - 184} y={CY} width="8" height="20" rx="2" fill="url(#chromRing)" />
+            <rect x={CX + 176} y={CY} width="8" height="20" rx="2" fill="url(#chromRing)" />
           </svg>
         </div>
 
