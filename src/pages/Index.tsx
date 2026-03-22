@@ -114,7 +114,7 @@ function useAudioEngine() {
 
 // Центр стрелки — нижняя середина полукруга
 const CX = 210;
-const CY = 230; // центр — с запасом от нижнего края
+const CY = 205; // центр внизу, полукруг уходит вверх
 
 const ticks = generateTicks(CX, CY);
 const labels = generateLabels(CX, CY);
@@ -365,8 +365,15 @@ export default function Index() {
               fill="url(#glassGrad)"
             />
 
-            {/* Нижняя панель значения */}
-            <rect x={CX - 62} y={CY - 50} width="124" height="42" rx="8"
+            {/* Нижняя прямая линия + боковые заглушки */}
+            <line x1={CX - 182} y1={CY} x2={CX + 182} y2={CY}
+              stroke="url(#chromRing)" strokeWidth="5"
+            />
+            <rect x={CX - 184} y={CY} width="8" height="20" rx="2" fill="url(#chromRing)" />
+            <rect x={CX + 176} y={CY} width="8" height="20" rx="2" fill="url(#chromRing)" />
+
+            {/* Панель значения — ниже линии основания */}
+            <rect x={CX - 62} y={CY + 6} width="124" height="42" rx="8"
               fill="rgba(0,0,0,0.65)"
               stroke="rgba(255,255,255,0.08)"
               strokeWidth="1"
@@ -374,7 +381,7 @@ export default function Index() {
             {value !== null ? (
               <>
                 <text
-                  x={CX} y={CY - 35}
+                  x={CX} y={CY + 24}
                   textAnchor="middle"
                   fill={isWarning ? "#f87171" : "#e2e8f0"}
                   fontSize="20"
@@ -385,7 +392,7 @@ export default function Index() {
                   {value}
                 </text>
                 <text
-                  x={CX} y={CY - 18}
+                  x={CX} y={CY + 40}
                   textAnchor="middle"
                   fill={isWarning ? "#f87171" : "#4a5568"}
                   fontSize="9"
@@ -397,7 +404,7 @@ export default function Index() {
               </>
             ) : (
               <text
-                x={CX} y={CY - 26}
+                x={CX} y={CY + 28}
                 textAnchor="middle"
                 fill="#3a4255"
                 fontSize="13"
@@ -406,13 +413,6 @@ export default function Index() {
                 — —
               </text>
             )}
-
-            {/* Нижняя прямая линия + боковые заглушки */}
-            <line x1={CX - 182} y1={CY} x2={CX + 182} y2={CY}
-              stroke="url(#chromRing)" strokeWidth="5"
-            />
-            <rect x={CX - 184} y={CY} width="8" height="20" rx="2" fill="url(#chromRing)" />
-            <rect x={CX + 176} y={CY} width="8" height="20" rx="2" fill="url(#chromRing)" />
           </svg>
         </div>
 
