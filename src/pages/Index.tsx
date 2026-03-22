@@ -4,127 +4,128 @@ const MIN = 1;
 const MAX = 250;
 const WARNING_THRESHOLD = 99;
 
-// Угол стрелки: от -135° (1) до +135° (250)
+// Полукруг: от 180° (левый край) до 0° (правый край)
+// Центр стрелки — нижняя середина циферблата
+// Угол: 180° = значение MIN, 0° = значение MAX
 function valueToAngle(value: number): number {
-  return -135 + ((value - MIN) / (MAX - MIN)) * 270;
+  return 180 - ((value - MIN) / (MAX - MIN)) * 180;
+}
+
+// Координаты точки на окружности (cx, cy) — углы в градусах
+function polar(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = (angleDeg * Math.PI) / 180;
+  return {
+    x: cx + r * Math.cos(rad),
+    y: cy + r * Math.sin(rad),
+  };
+}
+
+function describeArc(
+  cx: number, cy: number, r: number,
+  startDeg: number, endDeg: number
+) {
+  const s = polar(cx, cy, r, startDeg);
+  const e = polar(cx, cy, r, endDeg);
+  const large = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
+  const sweep = endDeg < startDeg ? 0 : 1;
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} ${sweep} ${e.x} ${e.y}`;
+}
+
+// Полукруг: от 180° до 0° (против часовой)
+function generateTicks(cx: number, cy: number) {
+  const ticks = [];
+  for (let v = 0; v <= 250; v += 5) {
+    const angleDeg = valueToAngle(v);
+    const isMajor = v % 50 === 0;
+    const isMed = v % 25 === 0 && !isMajor;
+    const r = 155;
+    const len = isMajor ? 22 : isMed ? 14 : 8;
+    const p1 = polar(cx, cy, r, angleDeg);
+    const p2 = polar(cx, cy, r - len, angleDeg);
+    ticks.push({ ...p1, x2: p2.x, y2: p2.y, isMajor, isMed, v });
+  }
+  return ticks;
+}
+
+function generateLabels(cx: number, cy: number) {
+  const labels = [];
+  for (let v = 0; v <= 250; v += 50) {
+    const angleDeg = valueToAngle(v);
+    const p = polar(cx, cy, 122, angleDeg);
+    labels.push({ x: p.x, y: p.y, v });
+  }
+  return labels;
 }
 
 function useAudioEngine() {
   const ctx = useRef<AudioContext | null>(null);
-
   const getCtx = useCallback(() => {
     if (!ctx.current) ctx.current = new AudioContext();
     return ctx.current;
   }, []);
 
-  const playTick = useCallback((intensity: number = 0.3) => {
+  const playTick = useCallback((intensity = 0.3) => {
     const ac = getCtx();
     const osc = ac.createOscillator();
     const gain = ac.createGain();
-    osc.connect(gain);
-    gain.connect(ac.destination);
+    osc.connect(gain); gain.connect(ac.destination);
     osc.type = "triangle";
     osc.frequency.setValueAtTime(800 + intensity * 400, ac.currentTime);
     osc.frequency.exponentialRampToValueAtTime(200, ac.currentTime + 0.05);
     gain.gain.setValueAtTime(0.15, ac.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.08);
-    osc.start(ac.currentTime);
-    osc.stop(ac.currentTime + 0.08);
+    osc.start(); osc.stop(ac.currentTime + 0.08);
   }, [getCtx]);
 
   const playWarning = useCallback(() => {
     const ac = getCtx();
-    const times = [0, 0.18, 0.36, 0.54];
-    times.forEach((t) => {
+    [0, 0.18, 0.36, 0.54].forEach((t) => {
       const osc = ac.createOscillator();
       const gain = ac.createGain();
-      osc.connect(gain);
-      gain.connect(ac.destination);
+      osc.connect(gain); gain.connect(ac.destination);
       osc.type = "sawtooth";
       osc.frequency.setValueAtTime(220, ac.currentTime + t);
       osc.frequency.exponentialRampToValueAtTime(440, ac.currentTime + t + 0.1);
-      gain.gain.setValueAtTime(0.0, ac.currentTime + t);
+      gain.gain.setValueAtTime(0, ac.currentTime + t);
       gain.gain.linearRampToValueAtTime(0.35, ac.currentTime + t + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.16);
-      osc.start(ac.currentTime + t);
-      osc.stop(ac.currentTime + t + 0.18);
+      osc.start(ac.currentTime + t); osc.stop(ac.currentTime + t + 0.18);
     });
   }, [getCtx]);
 
   const playSpin = useCallback((fromAngle: number, toAngle: number) => {
     const ac = getCtx();
-    const steps = Math.abs(toAngle - fromAngle) / 15;
-    const duration = 1.2;
+    const steps = Math.max(4, Math.abs(toAngle - fromAngle) / 12);
     for (let i = 0; i < steps; i++) {
-      const t = (i / steps) * duration * 0.8;
+      const t = (i / steps) * 1.0;
       const osc = ac.createOscillator();
       const gain = ac.createGain();
-      osc.connect(gain);
-      gain.connect(ac.destination);
+      osc.connect(gain); gain.connect(ac.destination);
       osc.type = "sine";
-      osc.frequency.setValueAtTime(600 + i * 20, ac.currentTime + t);
-      gain.gain.setValueAtTime(0.05, ac.currentTime + t);
+      osc.frequency.setValueAtTime(500 + i * 18, ac.currentTime + t);
+      gain.gain.setValueAtTime(0.04, ac.currentTime + t);
       gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.06);
-      osc.start(ac.currentTime + t);
-      osc.stop(ac.currentTime + t + 0.06);
+      osc.start(ac.currentTime + t); osc.stop(ac.currentTime + t + 0.06);
     }
   }, [getCtx]);
 
   return { playTick, playWarning, playSpin };
 }
 
-// Генерация делений шкалы
-function generateTicks() {
-  const ticks = [];
-  for (let v = 0; v <= 250; v += 10) {
-    const angle = valueToAngle(v) * (Math.PI / 180);
-    const cx = 200, cy = 200, r = 155;
-    const isMajor = v % 50 === 0;
-    const isMed = v % 25 === 0 && !isMajor;
-    const len = isMajor ? 22 : isMed ? 14 : 8;
-    const x1 = cx + r * Math.cos(angle);
-    const y1 = cy + r * Math.sin(angle);
-    const x2 = cx + (r - len) * Math.cos(angle);
-    const y2 = cy + (r - len) * Math.sin(angle);
-    ticks.push({ x1, y1, x2, y2, isMajor, isMed, v });
-  }
-  return ticks;
-}
+// Центр стрелки — нижняя середина полукруга
+const CX = 210;
+const CY = 215; // центр — чуть выше нижнего края
 
-function generateLabels() {
-  const labels = [];
-  for (let v = 0; v <= 250; v += 50) {
-    const angle = valueToAngle(v) * (Math.PI / 180);
-    const r = 122;
-    const cx = 200, cy = 200;
-    const x = cx + r * Math.cos(angle);
-    const y = cy + r * Math.sin(angle);
-    labels.push({ x, y, v });
-  }
-  return labels;
-}
-
-// Дуга зоны на шкале
-function describeArc(cx: number, cy: number, r: number, startDeg: number, endDeg: number) {
-  const toRad = (d: number) => d * Math.PI / 180;
-  const x1 = cx + r * Math.cos(toRad(startDeg));
-  const y1 = cy + r * Math.sin(toRad(startDeg));
-  const x2 = cx + r * Math.cos(toRad(endDeg));
-  const y2 = cy + r * Math.sin(toRad(endDeg));
-  const large = endDeg - startDeg > 180 ? 1 : 0;
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
-}
-
-const ticks = generateTicks();
-const labels = generateLabels();
+const ticks = generateTicks(CX, CY);
+const labels = generateLabels(CX, CY);
 
 export default function Index() {
   const [value, setValue] = useState<number | null>(null);
-  const [angle, setAngle] = useState(-135);
+  const [angle, setAngle] = useState(180); // стрелка стартует влево (MIN)
   const [isSpinning, setIsSpinning] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const { playTick, playWarning, playSpin } = useAudioEngine();
-  const prevAngleRef = useRef(-135);
+  const prevAngleRef = useRef(180);
   const warningIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const spin = useCallback(() => {
@@ -135,9 +136,7 @@ export default function Index() {
 
     const newValue = Math.floor(Math.random() * MAX) + MIN;
     const newAngle = valueToAngle(newValue);
-    const prevAngle = prevAngleRef.current;
-
-    playSpin(prevAngle, newAngle);
+    playSpin(prevAngleRef.current, newAngle);
 
     setTimeout(() => {
       setValue(newValue);
@@ -152,9 +151,7 @@ export default function Index() {
         warningIntervalRef.current = setInterval(() => {
           count++;
           playWarning();
-          if (count >= 2) {
-            clearInterval(warningIntervalRef.current!);
-          }
+          if (count >= 2) clearInterval(warningIntervalRef.current!);
         }, 750);
       } else {
         playTick(newValue / MAX);
@@ -162,156 +159,149 @@ export default function Index() {
     }, 100);
   }, [isSpinning, playSpin, playWarning, playTick]);
 
-  useEffect(() => {
-    return () => {
-      if (warningIntervalRef.current) clearInterval(warningIntervalRef.current);
-    };
+  useEffect(() => () => {
+    if (warningIntervalRef.current) clearInterval(warningIntervalRef.current);
   }, []);
 
-  const needleAngle = angle;
   const isWarning = value !== null && value > WARNING_THRESHOLD;
+
+  // Длина стрелки
+  const needleLen = 140;
+  const needleTip = polar(CX, CY, needleLen, angle);
+  const needleTail = polar(CX, CY, 22, angle + 180);
+  // Боковые точки основания стрелки
+  const needleL = polar(CX, CY, 8, angle + 90);
+  const needleR = polar(CX, CY, 8, angle - 90);
 
   return (
     <div className="app-bg min-h-screen flex flex-col items-center justify-center p-4">
       <div className="meter-container">
-
         <h1 className="meter-title">ПОЛУЛЯХ-МЕТР</h1>
         <p className="meter-subtitle">Измеритель случайных величин</p>
 
-        <div className="speedometer-wrap" style={{ position: "relative" }}>
-          {/* Предупреждение */}
+        <div className="speedometer-wrap">
           {showWarning && (
-            <div className="warning-flash">
-              ⚠ ПРЕВЫШЕНИЕ НОРМЫ
-            </div>
+            <div className="warning-flash">⚠ ПРЕВЫШЕНИЕ НОРМЫ</div>
           )}
 
           <svg
-            viewBox="0 0 400 360"
-            width="420"
-            height="378"
+            viewBox="0 0 420 240"
+            width="480"
+            height="275"
             style={{ display: "block", margin: "0 auto" }}
           >
             <defs>
-              {/* Металлический градиент корпуса */}
-              <radialGradient id="bodyGrad" cx="45%" cy="35%" r="65%">
-                <stop offset="0%" stopColor="#6e7a8a" />
-                <stop offset="30%" stopColor="#3a4250" />
-                <stop offset="70%" stopColor="#1e232c" />
-                <stop offset="100%" stopColor="#0d0f14" />
+              <radialGradient id="bodyGrad" cx="45%" cy="30%" r="70%">
+                <stop offset="0%" stopColor="#5a6475" />
+                <stop offset="35%" stopColor="#2e3440" />
+                <stop offset="75%" stopColor="#1a1e26" />
+                <stop offset="100%" stopColor="#0c0e13" />
               </radialGradient>
 
-              {/* Блик на корпусе */}
-              <radialGradient id="glassGrad" cx="40%" cy="25%" r="70%">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.18)" />
-                <stop offset="50%" stopColor="rgba(255,255,255,0.04)" />
-                <stop offset="100%" stopColor="rgba(0,0,0,0.3)" />
+              <radialGradient id="dialGrad" cx="50%" cy="35%" r="65%">
+                <stop offset="0%" stopColor="#252a34" />
+                <stop offset="100%" stopColor="#08090d" />
               </radialGradient>
 
-              {/* Кольцо хром */}
               <linearGradient id="chromRing" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#e8eaed" />
-                <stop offset="20%" stopColor="#9ca3af" />
-                <stop offset="40%" stopColor="#f3f4f6" />
-                <stop offset="60%" stopColor="#6b7280" />
-                <stop offset="80%" stopColor="#d1d5db" />
-                <stop offset="100%" stopColor="#4b5563" />
+                <stop offset="0%"   stopColor="#eaecee" />
+                <stop offset="22%"  stopColor="#8d9399" />
+                <stop offset="42%"  stopColor="#f0f1f2" />
+                <stop offset="62%"  stopColor="#5c6166" />
+                <stop offset="82%"  stopColor="#cdd0d3" />
+                <stop offset="100%" stopColor="#424749" />
               </linearGradient>
 
-              {/* Внутренний циферблат */}
-              <radialGradient id="dialGrad" cx="50%" cy="40%" r="60%">
-                <stop offset="0%" stopColor="#2a2e38" />
-                <stop offset="100%" stopColor="#0a0c10" />
+              <linearGradient id="needleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%"   stopColor="#ff4422" />
+                <stop offset="50%"  stopColor="#ff6644" />
+                <stop offset="100%" stopColor="#cc1a00" />
+              </linearGradient>
+
+              <radialGradient id="glassGrad" cx="38%" cy="20%" r="75%">
+                <stop offset="0%"   stopColor="rgba(255,255,255,0.14)" />
+                <stop offset="55%"  stopColor="rgba(255,255,255,0.03)" />
+                <stop offset="100%" stopColor="rgba(0,0,0,0.25)" />
               </radialGradient>
 
-              {/* Стрелка */}
-              <linearGradient id="needleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ff3c1a" />
-                <stop offset="60%" stopColor="#ff6b3d" />
-                <stop offset="100%" stopColor="#cc2200" />
-              </linearGradient>
-
-              {/* Фильтр свечения */}
               <filter id="glow">
-                <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-                <feMerge>
-                  <feMergeNode in="coloredBlur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
+                <feGaussianBlur stdDeviation="3" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
               </filter>
-
               <filter id="redGlow">
-                <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                <feMerge>
-                  <feMergeNode in="coloredBlur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
+                <feGaussianBlur stdDeviation="5" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <filter id="shadow">
+                <feDropShadow dx="0" dy="6" stdDeviation="10" floodColor="rgba(0,0,0,0.8)"/>
               </filter>
 
-              <filter id="shadowFilter" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="rgba(0,0,0,0.7)" />
-              </filter>
-
+              {/* Обрезаем по полукругу */}
+              <clipPath id="halfClip">
+                <rect x="0" y="0" width="420" height={CY} />
+              </clipPath>
               <clipPath id="dialClip">
-                <circle cx="200" cy="200" r="168" />
+                <path d={`M ${CX - 170} ${CY} A 170 170 0 0 1 ${CX + 170} ${CY} Z`} />
               </clipPath>
             </defs>
 
-            {/* Внешняя тень */}
-            <circle cx="200" cy="205" r="178" fill="rgba(0,0,0,0.5)" filter="url(#shadowFilter)" />
+            {/* Тень под корпусом */}
+            <ellipse cx={CX} cy={CY + 8} rx="182" ry="18" fill="rgba(0,0,0,0.55)" />
 
-            {/* Хромовое кольцо */}
-            <circle cx="200" cy="200" r="182" fill="url(#chromRing)" />
-            <circle cx="200" cy="200" r="176" fill="#111318" />
+            {/* Хромовое кольцо — полукруг */}
+            <path
+              d={`M ${CX - 182} ${CY} A 182 182 0 0 1 ${CX + 182} ${CY} Z`}
+              fill="url(#chromRing)"
+              filter="url(#shadow)"
+            />
+
+            {/* Внутренняя тёмная обводка */}
+            <path
+              d={`M ${CX - 175} ${CY} A 175 175 0 0 1 ${CX + 175} ${CY} Z`}
+              fill="#0e1015"
+            />
 
             {/* Корпус */}
-            <circle cx="200" cy="200" r="172" fill="url(#bodyGrad)" />
+            <path
+              d={`M ${CX - 170} ${CY} A 170 170 0 0 1 ${CX + 170} ${CY} Z`}
+              fill="url(#bodyGrad)"
+            />
 
             {/* Циферблат */}
-            <circle cx="200" cy="200" r="168" fill="url(#dialGrad)" />
-
-            {/* Зелёная зона 1-99 */}
             <path
-              d={describeArc(200, 200, 148, -135, valueToAngle(99))}
-              fill="none"
-              stroke="rgba(52, 211, 153, 0.25)"
-              strokeWidth="14"
-              strokeLinecap="butt"
+              d={`M ${CX - 165} ${CY} A 165 165 0 0 1 ${CX + 165} ${CY} Z`}
+              fill="url(#dialGrad)"
             />
 
-            {/* Жёлтая зона 99-175 */}
+            {/* Зелёная зона 1–99 */}
             <path
-              d={describeArc(200, 200, 148, valueToAngle(99), valueToAngle(175))}
-              fill="none"
-              stroke="rgba(251, 191, 36, 0.25)"
-              strokeWidth="14"
-              strokeLinecap="butt"
+              d={describeArc(CX, CY, 148, 180, valueToAngle(99))}
+              fill="none" stroke="rgba(52,211,153,0.22)" strokeWidth="13"
+            />
+            {/* Жёлтая зона 99–175 */}
+            <path
+              d={describeArc(CX, CY, 148, valueToAngle(99), valueToAngle(175))}
+              fill="none" stroke="rgba(251,191,36,0.22)" strokeWidth="13"
+            />
+            {/* Красная зона 175–250 */}
+            <path
+              d={describeArc(CX, CY, 148, valueToAngle(175), 0)}
+              fill="none" stroke="rgba(239,68,68,0.28)" strokeWidth="13"
             />
 
-            {/* Красная зона 175-250 */}
+            {/* Внешний трек-дуга */}
             <path
-              d={describeArc(200, 200, 148, valueToAngle(175), 135)}
-              fill="none"
-              stroke="rgba(239, 68, 68, 0.3)"
-              strokeWidth="14"
-              strokeLinecap="butt"
+              d={describeArc(CX, CY, 162, 180, 0)}
+              fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3"
             />
 
-            {/* Яркая дуга-трек */}
-            <path
-              d={describeArc(200, 200, 163, -135, 135)}
-              fill="none"
-              stroke="rgba(255,255,255,0.06)"
-              strokeWidth="3"
-            />
-
-            {/* Деления */}
+            {/* Деления — только в верхней полуплоскости */}
             {ticks.map((t, i) => (
               <line
                 key={i}
-                x1={t.x1} y1={t.y1}
+                x1={t.x} y1={t.y}
                 x2={t.x2} y2={t.y2}
-                stroke={t.isMajor ? "#e2e8f0" : t.isMed ? "#94a3b8" : "#475569"}
+                stroke={t.isMajor ? "#dde2ea" : t.isMed ? "#8a95a8" : "#3e4758"}
                 strokeWidth={t.isMajor ? 2.5 : t.isMed ? 1.8 : 1.2}
               />
             ))}
@@ -320,10 +310,10 @@ export default function Index() {
             {labels.map((l, i) => (
               <text
                 key={i}
-                x={l.x} y={l.y}
+                x={l.x} y={l.y + 5}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill="#94a3b8"
+                fill="#7a8899"
                 fontSize="13"
                 fontFamily="'Roboto Condensed', sans-serif"
                 fontWeight="700"
@@ -333,72 +323,61 @@ export default function Index() {
             ))}
 
             {/* Отметка 99 */}
-            <circle
-              cx={200 + 148 * Math.cos(valueToAngle(99) * Math.PI / 180)}
-              cy={200 + 148 * Math.sin(valueToAngle(99) * Math.PI / 180)}
-              r="4"
-              fill="#fbbf24"
-              filter="url(#glow)"
-            />
+            {(() => {
+              const p = polar(CX, CY, 148, valueToAngle(99));
+              return <circle cx={p.x} cy={p.y} r="4.5" fill="#fbbf24" filter="url(#glow)" />;
+            })()}
 
             {/* Стрелка */}
-            <g
-              transform={`rotate(${needleAngle}, 200, 200)`}
-              style={{
-                transition: isSpinning
-                  ? "none"
-                  : "transform 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
-                transformOrigin: "200px 200px",
-              }}
-            >
-              {/* Тень стрелки */}
+            <g style={{
+              transition: isSpinning
+                ? "none"
+                : "transform 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            }}>
+              {/* Тень */}
               <polygon
-                points="196,200 204,200 202,65 198,65"
-                fill="rgba(0,0,0,0.4)"
-                transform="translate(3,4)"
+                points={`${needleL.x + 3},${needleL.y + 4} ${needleR.x + 3},${needleR.y + 4} ${needleTip.x + 2},${needleTip.y + 3} ${needleTail.x + 3},${needleTail.y + 4}`}
+                fill="rgba(0,0,0,0.45)"
               />
-              {/* Стрелка */}
+              {/* Тело */}
               <polygon
-                points="197.5,200 202.5,200 201,68 199,68"
+                points={`${needleL.x},${needleL.y} ${needleR.x},${needleR.y} ${needleTip.x},${needleTip.y} ${needleTail.x},${needleTail.y}`}
                 fill="url(#needleGrad)"
                 filter={isWarning ? "url(#redGlow)" : undefined}
               />
               {/* Кончик */}
-              <polygon
-                points="199,68 201,68 200,58"
+              <circle
+                cx={needleTip.x} cy={needleTip.y} r="3"
                 fill="#ff1a00"
                 filter={isWarning ? "url(#redGlow)" : undefined}
               />
-              {/* Хвост */}
-              <polygon
-                points="196,200 204,200 202,230 198,230"
-                fill="#374151"
-              />
             </g>
 
-            {/* Центральная гайка */}
-            <circle cx="200" cy="200" r="14" fill="url(#chromRing)" />
-            <circle cx="200" cy="200" r="10" fill="#1f2937" />
-            <circle cx="200" cy="200" r="5" fill="#374151" />
-            <circle cx="197" cy="197" r="2" fill="rgba(255,255,255,0.3)" />
+            {/* Центральная втулка */}
+            <circle cx={CX} cy={CY} r="16" fill="url(#chromRing)" />
+            <circle cx={CX} cy={CY} r="11" fill="#1a1e28" />
+            <circle cx={CX} cy={CY} r="5"  fill="#2a2f3c" />
+            <circle cx={CX - 3} cy={CY - 3} r="2" fill="rgba(255,255,255,0.28)" />
 
-            {/* Стекло */}
-            <circle cx="200" cy="200" r="168" fill="url(#glassGrad)" />
-
-            {/* Нижняя панель с значением */}
-            <rect x="140" y="265" width="120" height="44" rx="8"
-              fill="rgba(0,0,0,0.6)"
-              stroke="rgba(255,255,255,0.1)"
-              strokeWidth="1"
+            {/* Стекло-блик */}
+            <path
+              d={`M ${CX - 165} ${CY} A 165 165 0 0 1 ${CX + 165} ${CY} Z`}
+              fill="url(#glassGrad)"
             />
 
+            {/* Нижняя панель значения */}
+            <rect x={CX - 62} y={CY - 50} width="124" height="42" rx="8"
+              fill="rgba(0,0,0,0.65)"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth="1"
+            />
             {value !== null ? (
               <>
                 <text
-                  x="200" y="282"
+                  x={CX} y={CY - 35}
                   textAnchor="middle"
                   fill={isWarning ? "#f87171" : "#e2e8f0"}
-                  fontSize="22"
+                  fontSize="20"
                   fontFamily="'Oswald', sans-serif"
                   fontWeight="700"
                   filter={isWarning ? "url(#redGlow)" : undefined}
@@ -406,38 +385,41 @@ export default function Index() {
                   {value}
                 </text>
                 <text
-                  x="200" y="300"
+                  x={CX} y={CY - 18}
                   textAnchor="middle"
-                  fill={isWarning ? "#f87171" : "#64748b"}
-                  fontSize="10"
+                  fill={isWarning ? "#f87171" : "#4a5568"}
+                  fontSize="9"
                   fontFamily="'Roboto Condensed', sans-serif"
-                  letterSpacing="1"
+                  letterSpacing="2"
                 >
-                  ПЛ
+                  ПОЛУЛЯХ
                 </text>
               </>
             ) : (
               <text
-                x="200" y="291"
+                x={CX} y={CY - 26}
                 textAnchor="middle"
-                fill="#475569"
+                fill="#3a4255"
                 fontSize="13"
                 fontFamily="'Roboto Condensed', sans-serif"
               >
                 — —
               </text>
             )}
+
+            {/* Нижняя прямая линия */}
+            <line x1={CX - 182} y1={CY} x2={CX + 182} y2={CY}
+              stroke="url(#chromRing)" strokeWidth="4"
+            />
           </svg>
         </div>
 
-        {/* Единица измерения */}
         <div className="unit-label">
           {value !== null
             ? `${value} ${getDeclension(value)}`
             : "нажмите кнопку для измерения"}
         </div>
 
-        {/* Кнопка */}
         <button
           className={`spin-button ${isSpinning ? "spinning" : ""} ${isWarning ? "danger" : ""}`}
           onClick={spin}
@@ -447,9 +429,7 @@ export default function Index() {
         </button>
 
         {isWarning && (
-          <div className="warning-text">
-            ⚠ ВНИМАНИЕ: превышена норма в 99 Пл
-          </div>
+          <div className="warning-text">⚠ ВНИМАНИЕ: превышена норма в 99 Пл</div>
         )}
       </div>
     </div>
